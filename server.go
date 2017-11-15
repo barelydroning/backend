@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"math/rand"
 	"net/http"
 	"time"
 
@@ -31,10 +32,22 @@ var upgrader = websocket.Upgrader{
 }
 
 func handleState(onChange chan sensorData, onUpdate chan sensorData) {
+	ticker := time.NewTicker(500 * time.Millisecond)
+	state := sensorData{0, 0, 0, 0}
 	for {
-		newState := <-onUpdate
-		log.Println("Updating state")
-		onChange <- newState
+		select {
+		case newState := <-onUpdate:
+			log.Println("Updating state")
+			state = newState
+			onChange <- newState
+
+		case <-ticker.C:
+			state.Pitch += (rand.Float64() - 0.5) * 10
+			state.Roll += (rand.Float64() - 0.5) * 10
+			state.Azimuth += (rand.Float64() - 0.5) * 10
+			state.Altitude += (rand.Float64() - 0.5) * 10
+			onChange <- state
+		}
 	}
 }
 
@@ -51,7 +64,7 @@ func handleInput(conn *websocket.Conn, onUpdate chan sensorData) {
 
 func handleOutput(conn *websocket.Conn, onChange chan sensorData) {
 	state := sensorData{0, 0, 0, 0}
-	ticker := time.NewTicker(2000 * time.Millisecond)
+	ticker := time.NewTicker(1000 * time.Millisecond)
 	for {
 		select {
 		case newState := <-onChange:
