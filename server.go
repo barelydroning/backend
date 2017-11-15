@@ -13,10 +13,10 @@ import (
 )
 
 type sensorData struct {
-	pitch    float64
-	roll     float64
-	azimuth  float64
-	altitude float64
+	Pitch    float64
+	Roll     float64
+	Azimuth  float64
+	Altitude float64
 }
 
 var addr = flag.String("addr", ":8080", "http service address")
@@ -30,27 +30,35 @@ var upgrader = websocket.Upgrader{
 	},
 }
 
-func inputHandler(conn *websocket.Conn) {
+func handleState(onChange chan sensorData, onUpdate chan sensorData) {
 	for {
-		messageType, p, err := conn.ReadMessage()
-		if err != nil {
-			log.Println(err)
-		}
-		if messageType == websocket.TextMessage {
-			fmt.Println(string(p))
-		} else {
-			log.Println("Byte message not supported")
-		}
+		newState := <-onUpdate
+		log.Println("Updating state")
+		onChange <- newState
 	}
 }
 
-func outputHandler(conn *websocket.Conn) {
+func handleInput(conn *websocket.Conn, onUpdate chan sensorData) {
+	for {
+		state := &sensorData{0, 0, 0, 0}
+		err := conn.ReadJSON(state)
+		if err != nil {
+			log.Println(err)
+		}
+		onUpdate <- *state
+	}
+}
+
+func handleOutput(conn *websocket.Conn, onChange chan sensorData) {
+	state := sensorData{0, 0, 0, 0}
 	ticker := time.NewTicker(2000 * time.Millisecond)
 	for {
 		select {
+		case newState := <-onChange:
+			state = newState
 		case <-ticker.C:
 			fmt.Println("Sending data...")
-			conn.WriteMessage(websocket.TextMessage, []byte("Hello!"))
+			conn.WriteJSON(state)
 		}
 	}
 }
@@ -61,8 +69,12 @@ func handler(w http.ResponseWriter, r *http.Request) {
 		log.Println(err)
 		return
 	}
-	go inputHandler(conn)
-	go outputHandler(conn)
+	onChange := make(chan sensorData)
+	onUpdate := make(chan sensorData)
+
+	go handleState(onChange, onUpdate)
+	go handleInput(conn, onUpdate)
+	go handleOutput(conn, onChange)
 }
 
 func main() {
