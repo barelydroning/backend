@@ -14,10 +14,10 @@ import (
 )
 
 type sensorData struct {
-	Pitch    float64
-	Roll     float64
-	Azimuth  float64
-	Altitude float64
+	Pitch    float64 `json:"pitch"`
+	Roll     float64 `json:"roll"`
+	Azimuth  float64 `json:"azimuth"`
+	Altitude float64 `json:"altitude"`
 }
 
 var addr = flag.String("addr", ":8080", "http service address")
@@ -32,7 +32,7 @@ var upgrader = websocket.Upgrader{
 }
 
 func handleState(onChange chan sensorData, onUpdate chan sensorData) {
-	ticker := time.NewTicker(500 * time.Millisecond)
+	ticker := time.NewTicker(1000 * time.Millisecond)
 	state := sensorData{0, 0, 0, 0}
 	for {
 		select {
@@ -64,7 +64,7 @@ func handleInput(conn *websocket.Conn, onUpdate chan sensorData) {
 
 func handleOutput(conn *websocket.Conn, onChange chan sensorData) {
 	state := sensorData{0, 0, 0, 0}
-	ticker := time.NewTicker(1000 * time.Millisecond)
+	ticker := time.NewTicker(100 * time.Millisecond)
 	for {
 		select {
 		case newState := <-onChange:
