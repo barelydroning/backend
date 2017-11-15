@@ -3,39 +3,50 @@
 package main
 
 import (
+	"flag"
 	"fmt"
-	"net"
+	"log"
+	"net/http"
+
+	"github.com/gorilla/websocket"
 )
 
-func handleConnection(conn net.Conn) {
-	// Make a buffer to hold incoming data.
-	buf := make([]byte, 1024)
-	// Read the incoming connection into the buffer.
-	reqLen, err := conn.Read(buf)
+var addr = flag.String("addr", ":8080", "http service address")
+
+var upgrader = websocket.Upgrader{
+	ReadBufferSize:  1024,
+	WriteBufferSize: 1024,
+	// allow all connections
+	CheckOrigin: func(r *http.Request) bool {
+		return true
+	},
+}
+
+func handler(w http.ResponseWriter, r *http.Request) {
+	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		fmt.Println("Error reading:", err.Error())
+		log.Println(err)
+		return
 	}
-	s := string(buf[:reqLen])
-	fmt.Println("received: ", s)
-	// Send a response back to person contacting us.
-	conn.Write([]byte("Message received."))
-	// Close the connection when you're done with it.
-	conn.Close()
+
+	for {
+		messageType, p, err := conn.ReadMessage()
+		if err != nil {
+			log.Println(err)
+			return
+		}
+		if err := conn.WriteMessage(messageType, p); err != nil {
+			log.Println(err)
+			return
+		}
+	}
 }
 
 func main() {
 	fmt.Println("Hello, 世界")
-	ln, err := net.Listen("tcp", ":8080")
+	http.HandleFunc("/", handler)
+	err := http.ListenAndServe(*addr, nil)
 	if err != nil {
-		fmt.Println("Error")
-	}
-	for {
-		conn, err := ln.Accept()
-		if err != nil {
-			fmt.Println("Error in connection")
-			continue
-		}
-		fmt.Println("New connection!")
-		go handleConnection(conn)
+		log.Println(err)
 	}
 }
